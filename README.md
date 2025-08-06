@@ -2,6 +2,7 @@ Offline ASL Translator 🗣️ 🎥👐
 
 An end‑to‑end Streamlit app that converts English speech or text into American Sign Language (ASL) gloss tokens and stitches corresponding sign‑language video clips into a playable video.
 
+
 Features
 
 Multi‑Modal Input: Text, audio file (WAV/MP3), or live microphone recording
@@ -68,3 +69,7 @@ Open a Pull Request
 
 Please ensure tests pass and add new ones for any new functionality.
 
+### Ollama On-Device Demo
+
+python demo_ollama.py "English: Hello, can you please clean the counter?
+ASL Gloss:"
