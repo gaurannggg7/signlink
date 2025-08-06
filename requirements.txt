@@ -1,0 +1,14 @@
+torch
+transformers>=4.53.0
+torchaudio
+openai-whisper
+sounddevice
+soundfile
+streamlit
+opencv-python
+ffmpeg-python
+pandas
+accelerate
+bitsandbytes
+timm
+moviepy
