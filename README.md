@@ -96,7 +96,7 @@ video_path = os.path.join(BASE_VIDEO_PATH, "folder1", "HELLO.mp4")
 
 Please ensure tests pass and add new ones for any new functionality.
 
-## Example Usage
+## Example Usage for Ollama.
 
 ```bash
 python demo_ollama.py "English: Hello, can you please clean the counter? ASL Gloss:"
