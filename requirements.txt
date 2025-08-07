@@ -12,3 +12,23 @@ accelerate
 bitsandbytes
 timm
 moviepy
+
+# Core models & inference
+torch
+torchaudio
+transformers>=4.53.0
+huggingface-hub
+accelerate
+bitsandbytes
+
+# Whisper speech-to-text
+openai-whisper
+sounddevice
+soundfile
+
+# Data & video stitching
+pandas
+ffmpeg-python
+
+# UI
+streamlit
