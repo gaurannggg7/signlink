@@ -1,36 +1,96 @@
-import ffmpeg
+import os
+import subprocess
+import tempfile
 
 def stitch_clips(paths: list[str], output_path: str = "output.mp4") -> str:
-    """
-    Concatenate arbitrary video clips into one MP4 by:
-      1) probing the first clip's resolution,
-      2) scaling all clips to that resolution,
-      3) filter-concat then encode to H.264.
-    """
     if not paths:
         raise ValueError("No clips to stitch.")
 
-    # 1) Probe first clip to get target width/height
-    info = ffmpeg.probe(paths[0], select_streams='v')
-    stream = next(s for s in info['streams'] if s['codec_type']=='video')
-    width, height = int(stream['width']), int(stream['height'])
+    TARGET_W = 1280
+    TARGET_H = 720
+    pid = os.getpid()
+    normalized = []
+    concat_list_path = None
 
-    # 2) Load and scale each clip
-    scaled = []
-    for p in paths:
-        inp = ffmpeg.input(p)
-        # scale to match the first clip's resolution
-        scaled.append(inp.filter('scale', width, height))
+    try:
+        # Pass 1: normalize each clip individually
+        for i, p in enumerate(paths):
+            if not os.path.exists(p):
+                print(f"⚠️ Skipping missing file: {p}")
+                continue
 
-    # 3) Concat video-only streams
-    joined = ffmpeg.concat(*scaled, v=1, a=0)
+            tmp_out = f"/tmp/norm_{pid}_{i}.mp4"
+            vf = (
+                f"scale={TARGET_W}:{TARGET_H}:"
+                f"force_original_aspect_ratio=decrease,"
+                f"pad={TARGET_W}:{TARGET_H}:(ow-iw)/2:(oh-ih)/2,"
+                f"setsar=1"
+            )
+            cmd = [
+                "ffmpeg", "-y",
+                "-i", p,
+                "-vf", vf,
+                "-vcodec", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-preset", "ultrafast",
+                "-crf", "28",
+                "-an",  # no audio
+                tmp_out
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f"⚠️ Normalize failed for {p}: {result.stderr[-300:]}")
+                continue
 
-    # 4) Re-encode to baseline-compatible MP4
-    out = ffmpeg.output(
-        joined,
-        output_path,
-        vcodec='libx264',
-        pix_fmt='yuv420p'
-    )
-    out.run(overwrite_output=True)
-    return output_path
+            if os.path.exists(tmp_out) and os.path.getsize(tmp_out) > 0:
+                normalized.append(tmp_out)
+            else:
+                print(f"⚠️ Normalize produced empty file for {p}")
+
+        if not normalized:
+            raise ValueError("No clips were successfully normalized.")
+
+        if len(normalized) == 1:
+            # Single clip — just copy it
+            import shutil
+            shutil.copy(normalized[0], output_path)
+            return output_path
+
+        # Pass 2: write concat list
+        concat_fd, concat_list_path = tempfile.mkstemp(suffix='.txt', dir='/tmp')
+        with os.fdopen(concat_fd, 'w') as f:
+            for p in normalized:
+                f.write(f"file '{p}'\n")
+
+        # Verify list was written
+        with open(concat_list_path) as f:
+            content = f.read()
+        print(f"Concat list:\n{content}")
+
+        # Pass 3: concat
+        cmd = [
+            "ffmpeg", "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", concat_list_path,
+            "-c", "copy",
+            output_path
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg concat failed:\n{result.stderr[-500:]}")
+
+        return output_path
+
+    finally:
+        for p in normalized:
+            try:
+                if os.path.exists(p):
+                    os.remove(p)
+            except Exception:
+                pass
+        if concat_list_path and os.path.exists(concat_list_path):
+            try:
+                os.remove(concat_list_path)
+            except Exception:
+                pass
